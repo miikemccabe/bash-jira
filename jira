@@ -56,10 +56,15 @@ if [[ $branch =~ $number_regex ]]; then
 	# find all numbers
 	numbers=()
 	tmp=$branch
-	while [[ $tmp =~ (${prefix_regex})?[-_]?${number_regex} ]]; do
+	while [[ $tmp =~ (${prefix_regex})?[-_]?(${number_regex}) ]]; do
 		m=${BASH_REMATCH[0]}
-		numbers[${#numbers[@]}]=${BASH_REMATCH[0]}
-		tmp=${tmp##*"${m}"}
+		m=${m##_}
+		n=${BASH_REMATCH[2]}
+		if [[ ! ${numbers[*]} =~ $n ]]; then
+			numbers[${#numbers[@]}]=${n}
+		fi
+		[[ $m != $n ]] &&  numbers[${#numbers[@]}]=$m
+		tmp=${tmp##*"${n}"}
 	done 
 
 	if [[ ${#numbers[@]} -gt 1 ]]; then
@@ -86,3 +91,4 @@ if [[ -z "$ticket_number" ]]; then
 fi
 
 open_jira
+

@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+
+project_code="PX"
+ticket_number="$1"
+branch=$(git branch --show-current 2>/dev/null)
+branch=$(echo $branch | tr "[:upper:]" "[:lower:]")
+prefix_regex=[a-zA-Z]{2,}
+number_regex=[0-9]{3,}
+
+validate () {
+	[[ $1 =~ ${prefix_regex}-${number_regex} ]] || exit 1
+}
+
+build_ticket_number () {
+	# If the ticket_number contains a prefix, use that instead of the default
+	if [[ "$ticket_number" =~ ${prefix_regex} ]]; then
+		project_code=${BASH_REMATCH[0]}
+		ticket_number=${ticket_number##${BASH_REMATCH[0]}}
+		ticket_number=${ticket_number##-}
+		ticket_number=${ticket_number##_}
+	fi
+	ticket=$(echo $project_code-$ticket_number | tr "[:lower:]" "[:upper:]")
+	echo $ticket
+}
+
+open_jira () {
+	ticket=$(build_ticket_number)
+	(validate $ticket)
+	if [[ $? != 1 ]]; then
+		url="https://sportsdirect.atlassian.net/browse/$ticket"
+		echo "Opening $url"
+		open $url
+		exit 0
+	else
+		echo "Invalid ticket number '$ticket''"
+		exit 1
+	fi
+}
+
+if [[ $# -gt 1 ]]; then
+	echo "Error: Too many arguments"
+	exit 1
+fi
+
+if [[ -n $ticket_number ]]; then
+	open_jira
+	exit 0
+fi
+
+if [[ -z $branch ]]; then
+	echo "Error: If no ticket number is supplied this must be run from a git repository"
+	exit 1
+fi
+
+if [[ $branch =~ $number_regex ]]; then
+	# find all numbers
+	numbers=()
+	tmp=$branch
+	while [[ $tmp =~ (${prefix_regex})?[-_]?${number_regex} ]]; do
+		m=${BASH_REMATCH[0]}
+		numbers[${#numbers[@]}]=${BASH_REMATCH[0]}
+		tmp=${tmp##*"${m}"}
+	done 
+
+	if [[ ${#numbers[@]} -gt 1 ]]; then
+		echo "Multiple potential ticket numbers found."
+		echo "Choose which ticket number to open"
+		select option in "${numbers[@]}";
+		do
+			ticket_number=$option
+			break
+		done
+	else
+		ticket_number="${numbers[0]}"
+	fi
+else
+	echo "Error: no ticket number found in branch name"
+	echo "Branch name: $branch"
+	exit 1
+fi
+
+if [[ -z "$ticket_number" ]]; then
+	echo "Unknown eror: cannot determine ticket number from branch name"
+	echo "Branch name: $branch"
+	exit 1
+fi
+
+open_jira
